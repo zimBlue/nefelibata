@@ -1,763 +1,1237 @@
-(function() {
-    function $() {
-        return Array.prototype.slice.call(document.querySelectorAll.apply(document, arguments));
-    }
-
-    // copy widgets in the right column, when exist, to the bottom of the left column
-    if ($('.columns .column-right').length && $('.columns .column-right-shadow').length && !$('.columns .column-right-shadow')[0].children.length) {
-        for (const child of $('.columns .column-right')[0].children) {
-            $('.columns .column-right-shadow')[0].append(child.cloneNode(true));
+(() => {
+  const btfFn = {
+    debounce: (func, wait = 0, immediate = false) => {
+      let timeout
+      return (...args) => {
+        const later = () => {
+          timeout = null
+          if (!immediate) func(...args)
         }
-    }
-}());
-;
-(function() {
-    function $() {
-        return Array.prototype.slice.call(document.querySelectorAll.apply(document, arguments));
-    }
+        const callNow = immediate && !timeout
+        clearTimeout(timeout)
+        timeout = setTimeout(later, wait)
+        if (callNow) func(...args)
+      }
+    },
 
-    $('body > .navbar, body > .section, body > .footer').forEach(element => {
-        element.style.transition = '0s';
-        element.style.opacity = '0';
-    });
-    document.querySelector('body > .navbar').style.transform = 'translateY(-100px)';
-    [
-        '.column-main > .card, .column-main > .pagination, .column-main > .post-navigation',
-        '.column-left > .card, .column-right-shadow > .card',
-        '.column-right > .card'
-    ].forEach(selector => {
-        $(selector).forEach(element => {
-            element.style.transition = '0s';
-            element.style.opacity = '0';
-            element.style.transform = 'scale(0.8)';
-            element.style.transformOrigin = 'center top';
-        });
-    });
-    // disable jump to location.hash
-    if (window.location.hash) {
-        window.scrollTo(0, 0);
-        setTimeout(() => window.scrollTo(0, 0));
-    }
+    throttle: function (func, wait, options = {}) {
+      let timeout, context, args
+      let previous = 0
 
-    setTimeout(() => {
-        $('body > .navbar, body > .section, body > .footer').forEach(element => {
-            element.style.opacity = '1';
-            element.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
-        });
-        document.querySelector('body > .navbar').style.transform = 'translateY(0)';
+      const later = () => {
+        previous = options.leading === false ? 0 : new Date().getTime()
+        timeout = null
+        func.apply(context, args)
+        if (!timeout) context = args = null
+      }
 
-        let i = 1;
-        [
-            '.column-main > .card, .column-main > .pagination, .column-main > .post-navigation',
-            '.column-left > .card, .column-right-shadow > .card',
-            '.column-right > .card'
-        ].forEach(selector => {
-            $(selector).forEach(element => {
-                setTimeout(() => {
-                    element.style.opacity = '1';
-                    element.style.transform = '';
-                    element.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
-                }, i * 100);
-                i++;
-            });
-        });
-
-        // jump to location.hash
-        if (window.location.hash) {
-            setTimeout(() => {
-                const id = '#' + CSS.escape(window.location.hash.substring(1));
-                const target = document.querySelector(id);
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth' });
-                }
-            }, i * 100);
+      const throttled = (...params) => {
+        const now = new Date().getTime()
+        if (!previous && options.leading === false) previous = now
+        const remaining = wait - (now - previous)
+        context = this
+        args = params
+        if (remaining <= 0 || remaining > wait) {
+          if (timeout) {
+            clearTimeout(timeout)
+            timeout = null
+          }
+          previous = now
+          func.apply(context, args)
+          if (!timeout) context = args = null
+        } else if (!timeout && options.trailing !== false) {
+          timeout = setTimeout(later, remaining)
         }
-    });
-}());
-;
-$(document).ready(() => {
-    const $button = $('#back-to-top');
-    const $footer = $('footer.footer');
-    const $mainColumn = $('.column-main');
-    const $leftSidebar = $('.column-left');
-    const $rightSidebar = $('.column-right');
-    let lastScrollTop = 0;
-    const rightMargin = 20;
-    const bottomMargin = 20;
-    let lastState = null;
-    const state = {
-        base: {
-            classname: 'card has-text-centered',
-            left: '',
-            width: 64,
-            bottom: bottomMargin
-        }
-    };
-    state['desktop-hidden'] = Object.assign({}, state.base, {
-        classname: state.base.classname + ' rise-up'
-    });
-    state['desktop-visible'] = Object.assign({}, state['desktop-hidden'], {
-        classname: state['desktop-hidden'].classname + ' fade-in'
-    });
-    state['desktop-dock'] = Object.assign({}, state['desktop-visible'], {
-        classname: state['desktop-visible'].classname + ' fade-in is-rounded',
-        width: 40
-    });
-    state['mobile-hidden'] = Object.assign({}, state.base, {
-        classname: state.base.classname + ' fade-in',
-        right: rightMargin
-    });
-    state['mobile-visible'] = Object.assign({}, state['mobile-hidden'], {
-        classname: state['mobile-hidden'].classname + ' rise-up'
-    });
+      }
 
-    function isStateEquals(prev, next) {
-        return ![].concat(Object.keys(prev), Object.keys(next)).some(key => {
-            return !Object.prototype.hasOwnProperty.call(prev, key)
-                || !Object.prototype.hasOwnProperty.call(next, key)
-                || next[key] !== prev[key];
-        });
-    }
+      return throttled
+    },
 
-    function applyState(state) {
-        if (lastState !== null && isStateEquals(lastState, state)) {
-            return;
+    overflowPaddingR: {
+      add: () => {
+        const paddingRight = window.innerWidth - document.body.clientWidth
+
+        if (paddingRight > 0) {
+          document.body.style.paddingRight = `${paddingRight}px`
+          document.body.style.overflow = 'hidden'
+          const menuElement = document.querySelector('#page-header.nav-fixed #menus')
+          if (menuElement) {
+            menuElement.style.paddingRight = `${paddingRight}px`
+          }
         }
-        $button.attr('class', state.classname);
-        for (const prop in state) {
-            if (prop === 'classname') {
-                continue;
+      },
+      remove: () => {
+        document.body.style.paddingRight = ''
+        document.body.style.overflow = ''
+        const menuElement = document.querySelector('#page-header.nav-fixed #menus')
+        if (menuElement) {
+          menuElement.style.paddingRight = ''
+        }
+      }
+    },
+
+    snackbarShow: (text, showAction = false, duration = 2000) => {
+      const { position, bgLight, bgDark } = GLOBAL_CONFIG.Snackbar
+      const bg = document.documentElement.getAttribute('data-theme') === 'light' ? bgLight : bgDark
+      Snackbar.show({
+        text,
+        backgroundColor: bg,
+        showAction,
+        duration,
+        pos: position,
+        customClass: 'snackbar-css'
+      })
+    },
+
+    diffDate: (inputDate, more = false) => {
+      const dateNow = new Date()
+      const datePost = new Date(inputDate)
+      const diffMs = dateNow - datePost
+      const diffSec = diffMs / 1000
+      const diffMin = diffSec / 60
+      const diffHour = diffMin / 60
+      const diffDay = diffHour / 24
+      const diffMonth = diffDay / 30
+      const { dateSuffix } = GLOBAL_CONFIG
+
+      if (!more) return Math.floor(diffDay)
+
+      if (diffMonth > 12) return datePost.toISOString().slice(0, 10)
+      if (diffMonth >= 1) return `${Math.floor(diffMonth)} ${dateSuffix.month}`
+      if (diffDay >= 1) return `${Math.floor(diffDay)} ${dateSuffix.day}`
+      if (diffHour >= 1) return `${Math.floor(diffHour)} ${dateSuffix.hour}`
+      if (diffMin >= 1) return `${Math.floor(diffMin)} ${dateSuffix.min}`
+      return dateSuffix.just
+    },
+
+    loadComment: (dom, callback) => {
+      if ('IntersectionObserver' in window) {
+        const observerItem = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            callback()
+            observerItem.disconnect()
+          }
+        }, { threshold: [0] })
+        observerItem.observe(dom)
+      } else {
+        callback()
+      }
+    },
+
+    scrollToDest: (pos, time = 500) => {
+      const currentPos = window.scrollY
+      const isNavFixed = document.getElementById('page-header').classList.contains('fixed')
+      if (currentPos > pos || isNavFixed) pos = pos - 70
+
+      if ('scrollBehavior' in document.documentElement.style) {
+        window.scrollTo({
+          top: pos,
+          behavior: 'smooth'
+        })
+        return
+      }
+
+      const startTime = performance.now()
+      const animate = currentTime => {
+        const timeElapsed = currentTime - startTime
+        const progress = Math.min(timeElapsed / time, 1)
+        window.scrollTo(0, currentPos + (pos - currentPos) * progress)
+        if (progress < 1) {
+          requestAnimationFrame(animate)
+        }
+      }
+      requestAnimationFrame(animate)
+    },
+
+    animateIn: (ele, animation) => {
+      ele.style.display = 'block'
+      ele.style.animation = animation
+    },
+
+    animateOut: (ele, animation) => {
+      const handleAnimationEnd = () => {
+        ele.style.display = ''
+        ele.style.animation = ''
+        ele.removeEventListener('animationend', handleAnimationEnd)
+      }
+      ele.addEventListener('animationend', handleAnimationEnd)
+      ele.style.animation = animation
+    },
+
+    wrap: (selector, eleType, options) => {
+      const createEle = document.createElement(eleType)
+      for (const [key, value] of Object.entries(options)) {
+        createEle.setAttribute(key, value)
+      }
+      selector.parentNode.insertBefore(createEle, selector)
+      createEle.appendChild(selector)
+    },
+
+    isHidden: ele => ele.offsetHeight === 0 && ele.offsetWidth === 0,
+
+    getEleTop: ele => {
+      let actualTop = ele.offsetTop
+      let current = ele.offsetParent
+
+      while (current !== null) {
+        actualTop += current.offsetTop
+        current = current.offsetParent
+      }
+
+      return actualTop
+    },
+
+    loadLightbox: ele => {
+      const service = GLOBAL_CONFIG.lightbox
+
+      if (service === 'medium_zoom') {
+        mediumZoom(ele, { background: 'var(--zoom-bg)' })
+      }
+
+      if (service === 'fancybox') {
+        Array.from(ele).forEach(i => {
+          if (i.parentNode.tagName !== 'A') {
+            const dataSrc = i.dataset.lazySrc || i.src
+            const dataCaption = i.title || i.alt || ''
+            btf.wrap(i, 'a', { href: dataSrc, 'data-fancybox': 'gallery', 'data-caption': dataCaption, 'data-thumb': dataSrc })
+          }
+        })
+
+        if (!window.fancyboxRun) {
+          Fancybox.bind('[data-fancybox]', {
+            Hash: false,
+            Thumbs: {
+              showOnStart: false
+            },
+            Images: {
+              Panzoom: {
+                maxScale: 4
+              }
+            },
+            Carousel: {
+              transition: 'slide'
+            },
+            Toolbar: {
+              display: {
+                left: ['infobar'],
+                middle: [
+                  'zoomIn',
+                  'zoomOut',
+                  'toggle1to1',
+                  'rotateCCW',
+                  'rotateCW',
+                  'flipX',
+                  'flipY'
+                ],
+                right: ['slideshow', 'thumbs', 'close']
+              }
             }
-            $button.css(prop, state[prop]);
+          })
+          window.fancyboxRun = true
         }
-        lastState = state;
-    }
+      }
+    },
 
-    function isDesktop() {
-        return window.innerWidth >= 1078;
-    }
+    setLoading: {
+      add: ele => {
+        const html = `
+        <div class="loading-container">
+          <div class="loading-item">
+            <div></div><div></div><div></div><div></div><div></div>
+          </div>
+        </div>
+      `
+        ele.insertAdjacentHTML('afterend', html)
+      },
+      remove: ele => {
+        ele.nextElementSibling.remove()
+      }
+    },
 
-    function isTablet() {
-        return window.innerWidth >= 768 && !isDesktop();
-    }
+    updateAnchor: anchor => {
+      if (anchor !== window.location.hash) {
+        if (!anchor) anchor = location.pathname
+        const title = GLOBAL_CONFIG_SITE.title
+        window.history.replaceState({
+          url: location.href,
+          title
+        }, title, anchor)
+      }
+    },
 
-    function isScrollUp() {
-        return $(window).scrollTop() < lastScrollTop && $(window).scrollTop() > 0;
-    }
+    getScrollPercent: (() => {
+      let docHeight, winHeight, headerHeight, contentMath
 
-    function hasLeftSidebar() {
-        return $leftSidebar.length > 0;
-    }
-
-    function hasRightSidebar() {
-        return $rightSidebar.length > 0;
-    }
-
-    function getRightSidebarBottom() {
-        if (!hasRightSidebar()) {
-            return 0;
+      return (currentTop, ele) => {
+        if (!docHeight || ele.clientHeight !== docHeight) {
+          docHeight = ele.clientHeight
+          winHeight = window.innerHeight
+          headerHeight = ele.offsetTop
+          contentMath = Math.max(docHeight - winHeight, document.documentElement.scrollHeight - winHeight)
         }
-        return Math.max.apply(null, $rightSidebar.find('.widget').map(function() {
-            return $(this).offset().top + $(this).outerHeight(true);
-        }));
-    }
 
-    function getScrollTop() {
-        return $(window).scrollTop();
-    }
+        const scrollPercent = (currentTop - headerHeight) / contentMath
+        return Math.max(0, Math.min(100, Math.round(scrollPercent * 100)))
+      }
+    })(),
 
-    function getScrollBottom() {
-        return $(window).scrollTop() + $(window).height();
-    }
+    addEventListenerPjax: (ele, event, fn, option = false) => {
+      ele.addEventListener(event, fn, option)
+      btf.addGlobalFn('pjaxSendOnce', () => {
+        ele.removeEventListener(event, fn, option)
+      })
+    },
 
-    function getButtonWidth() {
-        return $button.outerWidth(true);
-    }
+    removeGlobalFnEvent: (key, parent = window) => {
+      const globalFn = parent.globalFn || {}
+      const keyObj = globalFn[key]
+      if (!keyObj) return
 
-    function getButtonHeight() {
-        return $button.outerHeight(true);
-    }
+      Object.keys(keyObj).forEach(i => keyObj[i]())
 
-    function updateScrollTop() {
-        lastScrollTop = $(window).scrollTop();
-    }
+      delete globalFn[key]
+    },
 
-    function update() {
-        // desktop mode or tablet mode with only right sidebar enabled
-        if (isDesktop() || (isTablet() && !hasLeftSidebar() && hasRightSidebar())) {
-            let nextState;
-            const padding = ($mainColumn.outerWidth() - $mainColumn.width()) / 2;
-            const maxLeft = $(window).width() - getButtonWidth() - rightMargin;
-            const maxBottom = $footer.offset().top + (getButtonHeight() / 2) + bottomMargin;
-            if (getScrollTop() === 0 || getScrollBottom() < getRightSidebarBottom() + padding + getButtonHeight()) {
-                nextState = state['desktop-hidden'];
-            } else if (getScrollBottom() < maxBottom) {
-                nextState = state['desktop-visible'];
-            } else {
-                nextState = Object.assign({}, state['desktop-dock'], {
-                    bottom: getScrollBottom() - maxBottom + bottomMargin
-                });
-            }
+    switchComments: (el = document, path) => {
+      const switchBtn = el.querySelector('#switch-btn')
+      if (!switchBtn) return
 
-            const left = $mainColumn.offset().left + $mainColumn.outerWidth() + padding;
-            nextState = Object.assign({}, nextState, {
-                left: Math.min(left, maxLeft)
-            });
-            applyState(nextState);
-        } else {
-            // mobile and tablet mode
-            if (!isScrollUp()) {
-                applyState(state['mobile-hidden']);
-            } else {
-                applyState(state['mobile-visible']);
-            }
-            updateScrollTop();
+      let switchDone = false
+      const postComment = el.querySelector('#post-comment')
+      const handleSwitchBtn = () => {
+        postComment.classList.toggle('move')
+        if (!switchDone && typeof loadOtherComment === 'function') {
+          switchDone = true
+          loadOtherComment(el, path)
         }
+      }
+      btf.addEventListenerPjax(switchBtn, 'click', handleSwitchBtn)
     }
+  }
 
-    update();
-    $(window).resize(update);
-    $(window).scroll(update);
-
-    $('#back-to-top').on('click', () => {
-        if (CSS && CSS.supports && CSS.supports('(scroll-behavior: smooth)')) {
-            window.scroll({ top: 0, behavior: 'smooth' });
-        } else {
-            $('body, html').animate({ scrollTop: 0 }, 400);
-        }
-    });
-});
+  window.btf = { ...window.btf, ...btfFn }
+})()
 ;
-(function() {
-    // eslint-disable-next-line no-unused-vars
-    let pjax;
+document.addEventListener('DOMContentLoaded', () => {
+  let headerContentWidth, $nav
+  let mobileSidebarOpen = false
 
-    function initPjax() {
+  const adjustMenu = init => {
+    const getAllWidth = ele => Array.from(ele).reduce((width, i) => width + i.offsetWidth, 0)
+
+    if (init) {
+      const blogInfoWidth = getAllWidth(document.querySelector('#blog-info > a').children)
+      const menusWidth = getAllWidth(document.getElementById('menus').children)
+      headerContentWidth = blogInfoWidth + menusWidth
+      $nav = document.getElementById('nav')
+    }
+
+    const hideMenuIndex = window.innerWidth <= 768 || headerContentWidth > $nav.offsetWidth - 120
+    $nav.classList.toggle('hide-menu', hideMenuIndex)
+  }
+
+  // 初始化header
+  const initAdjust = () => {
+    adjustMenu(true)
+    $nav.classList.add('show')
+  }
+
+  // sidebar menus
+  const sidebarFn = {
+    open: () => {
+      btf.overflowPaddingR.add()
+      btf.animateIn(document.getElementById('menu-mask'), 'to_show 0.5s')
+      document.getElementById('sidebar-menus').classList.add('open')
+      mobileSidebarOpen = true
+    },
+    close: () => {
+      btf.overflowPaddingR.remove()
+      btf.animateOut(document.getElementById('menu-mask'), 'to_hide 0.5s')
+      document.getElementById('sidebar-menus').classList.remove('open')
+      mobileSidebarOpen = false
+    }
+  }
+
+  /**
+   * 首頁top_img底下的箭頭
+   */
+  const scrollDownInIndex = () => {
+    const handleScrollToDest = () => {
+      btf.scrollToDest(document.getElementById('content-inner').offsetTop, 300)
+    }
+
+    const $scrollDownEle = document.getElementById('scroll-down')
+    $scrollDownEle && btf.addEventListenerPjax($scrollDownEle, 'click', handleScrollToDest)
+  }
+
+  /**
+   * 代碼
+   * 只適用於Hexo默認的代碼渲染
+   */
+  const addHighlightTool = () => {
+    const highLight = GLOBAL_CONFIG.highlight
+    if (!highLight) return
+
+    const { highlightCopy, highlightLang, highlightHeightLimit, highlightFullpage, highlightMacStyle, plugin } = highLight
+    const isHighlightShrink = GLOBAL_CONFIG_SITE.isHighlightShrink
+    const isShowTool = highlightCopy || highlightLang || isHighlightShrink !== undefined || highlightFullpage || highlightMacStyle
+    const $figureHighlight = plugin === 'highlight.js' ? document.querySelectorAll('figure.highlight') : document.querySelectorAll('pre[class*="language-"]')
+
+    if (!((isShowTool || highlightHeightLimit) && $figureHighlight.length)) return
+
+    const isPrismjs = plugin === 'prismjs'
+    const highlightShrinkClass = isHighlightShrink === true ? 'closed' : ''
+    const highlightShrinkEle = isHighlightShrink !== undefined ? '<i class="fas fa-angle-down expand"></i>' : ''
+    const highlightCopyEle = highlightCopy ? '<div class="copy-notice"></div><i class="fas fa-paste copy-button"></i>' : ''
+    const highlightMacStyleEle = '<div class="macStyle"><div class="mac-close"></div><div class="mac-minimize"></div><div class="mac-maximize"></div></div>'
+    const highlightFullpageEle = highlightFullpage ? '<i class="fa-solid fa-up-right-and-down-left-from-center fullpage-button"></i>' : ''
+
+    const alertInfo = (ele, text) => {
+      if (GLOBAL_CONFIG.Snackbar !== undefined) {
+        btf.snackbarShow(text)
+      } else {
+        ele.textContent = text
+        ele.style.opacity = 1
+        setTimeout(() => { ele.style.opacity = 0 }, 800)
+      }
+    }
+
+    const copy = async (text, ctx) => {
+      try {
+        await navigator.clipboard.writeText(text)
+        alertInfo(ctx, GLOBAL_CONFIG.copy.success)
+      } catch (err) {
+        console.error('Failed to copy: ', err)
+        alertInfo(ctx, GLOBAL_CONFIG.copy.noSupport)
+      }
+    }
+
+    // click events
+    const highlightCopyFn = (ele, clickEle) => {
+      const $buttonParent = ele.parentNode
+      $buttonParent.classList.add('copy-true')
+      const preCodeSelector = isPrismjs ? 'pre code' : 'table .code pre'
+      const codeElement = $buttonParent.querySelector(preCodeSelector)
+      if (!codeElement) return
+      copy(codeElement.innerText, clickEle.previousElementSibling)
+      $buttonParent.classList.remove('copy-true')
+    }
+
+    const highlightShrinkFn = ele => ele.classList.toggle('closed')
+
+    const codeFullpage = (item, clickEle) => {
+      const wrapEle = item.closest('figure.highlight')
+      const isFullpage = wrapEle.classList.toggle('code-fullpage')
+
+      document.body.style.overflow = isFullpage ? 'hidden' : ''
+      clickEle.classList.toggle('fa-down-left-and-up-right-to-center', isFullpage)
+      clickEle.classList.toggle('fa-up-right-and-down-left-from-center', !isFullpage)
+    }
+
+    const highlightToolsFn = e => {
+      const $target = e.target.classList
+      const currentElement = e.currentTarget
+      if ($target.contains('expand')) highlightShrinkFn(currentElement)
+      else if ($target.contains('copy-button')) highlightCopyFn(currentElement, e.target)
+      else if ($target.contains('fullpage-button')) codeFullpage(currentElement, e.target)
+    }
+
+    const expandCode = e => e.currentTarget.classList.toggle('expand-done')
+
+    // 獲取隱藏狀態下元素的真實高度
+    const getActualHeight = item => {
+      const hiddenElements = new Map()
+
+      const fix = () => {
+        let current = item
+        while (current !== document.body && current != null) {
+          if (window.getComputedStyle(current).display === 'none') {
+            hiddenElements.set(current, current.getAttribute('style') || '')
+          }
+          current = current.parentNode
+        }
+
+        const style = 'visibility: hidden !important; display: block !important;'
+        hiddenElements.forEach((originalStyle, elem) => {
+          elem.setAttribute('style', originalStyle ? originalStyle + ';' + style : style)
+        })
+      }
+
+      const restore = () => {
+        hiddenElements.forEach((originalStyle, elem) => {
+          if (originalStyle === '') elem.removeAttribute('style')
+          else elem.setAttribute('style', originalStyle)
+        })
+      }
+
+      fix()
+      const height = item.offsetHeight
+      restore()
+      return height
+    }
+
+    const createEle = (lang, item) => {
+      const fragment = document.createDocumentFragment()
+
+      if (isShowTool) {
+        const hlTools = document.createElement('div')
+        hlTools.className = `highlight-tools ${highlightShrinkClass}`
+        hlTools.innerHTML = highlightMacStyleEle + highlightShrinkEle + lang + highlightCopyEle + highlightFullpageEle
+        btf.addEventListenerPjax(hlTools, 'click', highlightToolsFn)
+        fragment.appendChild(hlTools)
+      }
+
+      if (highlightHeightLimit && getActualHeight(item) > highlightHeightLimit + 30) {
+        const ele = document.createElement('div')
+        ele.className = 'code-expand-btn'
+        ele.innerHTML = '<i class="fas fa-angle-double-down"></i>'
+        btf.addEventListenerPjax(ele, 'click', expandCode)
+        fragment.appendChild(ele)
+      }
+
+      isPrismjs ? item.parentNode.insertBefore(fragment, item) : item.insertBefore(fragment, item.firstChild)
+    }
+
+    $figureHighlight.forEach(item => {
+      let langName = ''
+      if (isPrismjs) btf.wrap(item, 'figure', { class: 'highlight' })
+
+      if (!highlightLang) {
+        createEle('', item)
+        return
+      }
+
+      if (isPrismjs) {
+        langName = item.getAttribute('data-language') || 'Code'
+      } else {
+        langName = item.getAttribute('class').split(' ')[1]
+        if (langName === 'plain' || langName === undefined) langName = 'Code'
+      }
+      createEle(`<div class="code-lang">${langName}</div>`, item)
+    })
+  }
+
+  /**
+   * PhotoFigcaption
+   */
+  const addPhotoFigcaption = () => {
+    if (!GLOBAL_CONFIG.isPhotoFigcaption) return
+    document.querySelectorAll('#article-container img').forEach(item => {
+      const altValue = item.title || item.alt
+      if (!altValue) return
+      const ele = document.createElement('div')
+      ele.className = 'img-alt text-center'
+      ele.textContent = altValue
+      item.insertAdjacentElement('afterend', ele)
+    })
+  }
+
+  /**
+   * Lightbox
+   */
+  const runLightbox = () => {
+    btf.loadLightbox(document.querySelectorAll('#article-container img:not(.no-lightbox)'))
+  }
+
+  /**
+   * justified-gallery 圖庫排版
+   */
+
+  const fetchUrl = async url => {
+    const response = await fetch(url)
+    return await response.json()
+  }
+
+  const runJustifiedGallery = (item, data, isButton = false, tabs) => {
+    const dataLength = data.length
+
+    const ig = new InfiniteGrid.JustifiedInfiniteGrid(item, {
+      gap: 5,
+      isConstantSize: true,
+      sizeRange: [150, 600],
+      // useResizeObserver: true,
+      // observeChildren: true,
+      useTransform: true
+      // useRecycle: false
+    })
+
+    const replaceDq = str => str.replace(/"/g, '&quot;') // replace double quotes to &quot;
+
+    const getItems = (nextGroupKey, count) => {
+      const nextItems = []
+      const startCount = (nextGroupKey - 1) * count
+
+      for (let i = 0; i < count; ++i) {
+        const num = startCount + i
+        if (num >= dataLength) {
+          break
+        }
+
+        const item = data[num]
+        const alt = item.alt ? `alt="${replaceDq(item.alt)}"` : ''
+        const title = item.title ? `title="${replaceDq(item.title)}"` : ''
+
+        nextItems.push(`<div class="item">
+            <img src="${item.url}" data-grid-maintained-target="true" ${alt + title} />
+          </div>`)
+      }
+      return nextItems
+    }
+
+    const buttonText = GLOBAL_CONFIG.infinitegrid.buttonText
+    const addButton = item => {
+      const button = document.createElement('button')
+      button.innerHTML = buttonText + '<i class="fa-solid fa-arrow-down"></i>'
+
+      button.addEventListener('click', e => {
+        e.target.closest('button').remove()
+        btf.setLoading.add(item)
+        appendItem(ig.getGroups().length + 1, 10)
+      }, { once: true })
+
+      item.insertAdjacentElement('afterend', button)
+    }
+
+    const appendItem = (nextGroupKey, count) => {
+      ig.append(getItems(nextGroupKey, count), nextGroupKey)
+    }
+
+    const maxGroupKey = Math.ceil(dataLength / 10)
+    let isLayoutHidden = false
+
+    const completeFn = e => {
+      if (tabs) {
+        const parentNode = item.parentNode
+
+        if (isLayoutHidden) {
+          parentNode.style.visibility = 'visible'
+        }
+
+        if (item.offsetHeight === 0) {
+          parentNode.style.visibility = 'hidden'
+          isLayoutHidden = true
+        }
+      }
+
+      const { updated, isResize, mounted } = e
+      if (!updated.length || !mounted.length || isResize) {
+        return
+      }
+
+      btf.loadLightbox(item.querySelectorAll('img:not(.medium-zoom-image)'))
+
+      if (ig.getGroups().length === maxGroupKey) {
+        btf.setLoading.remove(item)
+        !tabs && ig.off('renderComplete', completeFn)
+        return
+      }
+
+      if (isButton) {
+        btf.setLoading.remove(item)
+        addButton(item)
+      }
+    }
+
+    const requestAppendFn = btf.debounce(e => {
+      const nextGroupKey = (+e.groupKey || 0) + 1
+      appendItem(nextGroupKey, 10)
+
+      if (nextGroupKey === maxGroupKey) {
+        ig.off('requestAppend', requestAppendFn)
+      }
+    }, 300)
+
+    btf.setLoading.add(item)
+    ig.on('renderComplete', completeFn)
+
+    if (isButton) {
+      appendItem(1, 10)
+    } else {
+      ig.on('requestAppend', requestAppendFn)
+      ig.renderItems()
+    }
+
+    btf.addGlobalFn('pjaxSendOnce', () => { ig.destroy() })
+  }
+
+  const addJustifiedGallery = async (ele, tabs = false) => {
+    if (!ele.length) return
+    const init = async () => {
+      for (const item of ele) {
+        if (btf.isHidden(item) || item.classList.contains('loaded')) continue
+
+        const isButton = item.getAttribute('data-button') === 'true'
+        const children = item.firstElementChild
+        const text = children.textContent
+        children.textContent = ''
+        item.classList.add('loaded')
         try {
-            const Pjax = window.Pjax || function() {};
-            pjax = new Pjax({
-                selectors: [
-                    'head title',
-                    '.columns',
-                    '.navbar-start',
-                    '.navbar-end',
-                    '.searchbox',
-                    '#back-to-top',
-                    '[data-pjax]',
-                    '.pjax-reload'
-                ]
-            });
+          const content = item.getAttribute('data-type') === 'url' ? await fetchUrl(text) : JSON.parse(text)
+          runJustifiedGallery(children, content, isButton, tabs)
         } catch (e) {
-            console.warn('PJAX error: ' + e);
+          console.error('Gallery data parsing failed:', e)
         }
+      }
     }
 
-    // // Listen for start of Pjax
-    // document.addEventListener('pjax:send', function() {
-    //     return;
-    //     // TODO pace start loading animation
-    // })
-
-    // // Listen for completion of Pjax
-    // document.addEventListener('pjax:complete', function() {
-    //     return;
-    //     // TODO pace stop loading animation
-    // })
-
-    document.addEventListener('DOMContentLoaded', () => initPjax());
-}());
-;
-/* eslint-disable node/no-unsupported-features/node-builtins */
-(function($, moment, ClipboardJS, config) {
-    $('.article img:not(".not-gallery-item")').each(function() {
-        // wrap images with link and add caption if possible
-        if ($(this).parent('a').length === 0) {
-            $(this).wrap('<a class="gallery-item" href="' + $(this).attr('src') + '"></a>');
-            if (this.alt) {
-                $(this).after('<p class="has-text-centered is-size-6 caption">' + this.alt + '</p>');
-            }
-        }
-    });
-
-    if (typeof $.fn.lightGallery === 'function') {
-        $('.article').lightGallery({ selector: '.gallery-item' });
+    if (typeof InfiniteGrid === 'function') {
+      init()
+    } else {
+      await btf.getScript(`${GLOBAL_CONFIG.infinitegrid.js}`)
+      init()
     }
-    if (typeof $.fn.justifiedGallery === 'function') {
-        if ($('.justified-gallery > p > .gallery-item').length) {
-            $('.justified-gallery > p > .gallery-item').unwrap();
-        }
-        $('.justified-gallery').justifiedGallery();
+  }
+
+  /**
+   * rightside scroll percent
+   */
+  const rightsideScrollPercent = currentTop => {
+    const scrollPercent = btf.getScrollPercent(currentTop, document.body)
+    const goUpElement = document.getElementById('go-up')
+
+    if (scrollPercent < 95) {
+      goUpElement.classList.add('show-percent')
+      goUpElement.querySelector('.scroll-percent').textContent = scrollPercent
+    } else {
+      goUpElement.classList.remove('show-percent')
+    }
+  }
+
+  /**
+   * 滾動處理
+   */
+  const scrollFn = () => {
+    const $rightside = document.getElementById('rightside')
+    const innerHeight = window.innerHeight + 56
+    let initTop = 0
+    const $header = document.getElementById('page-header')
+    const isChatBtn = typeof chatBtn !== 'undefined'
+    const isShowPercent = GLOBAL_CONFIG.percent.rightside
+
+    // 檢查文檔高度是否小於視窗高度
+    const checkDocumentHeight = () => {
+      if (document.body.scrollHeight <= innerHeight) {
+        $rightside.classList.add('rightside-show')
+        return true
+      }
+      return false
     }
 
-    if (typeof moment === 'function') {
-        $('.article-meta time').each(function() {
-            $(this).text(moment($(this).attr('datetime')).fromNow());
-        });
+    // 如果文檔高度小於視窗高度,直接返回
+    if (checkDocumentHeight()) return
+
+    // find the scroll direction
+    const scrollDirection = currentTop => {
+      const result = currentTop > initTop // true is down & false is up
+      initTop = currentTop
+      return result
     }
 
-    $('.article > .content > table').each(function() {
-        if ($(this).width() > $(this).parent().width()) {
-            $(this).wrap('<div class="table-overflow"></div>');
+    let flag = ''
+    const scrollTask = btf.throttle(() => {
+      const currentTop = window.scrollY || document.documentElement.scrollTop
+      const isDown = scrollDirection(currentTop)
+      if (currentTop > 56) {
+        if (flag === '') {
+          $header.classList.add('nav-fixed')
+          $rightside.classList.add('rightside-show')
         }
-    });
 
-    function adjustNavbar() {
-        const navbarWidth = $('.navbar-main .navbar-start').outerWidth() + $('.navbar-main .navbar-end').outerWidth();
-        if ($(document).outerWidth() < navbarWidth) {
-            $('.navbar-main .navbar-menu').addClass('justify-content-start');
+        if (isDown) {
+          if (flag !== 'down') {
+            $header.classList.remove('nav-visible')
+            isChatBtn && window.chatBtn.hide()
+            flag = 'down'
+          }
         } else {
-            $('.navbar-main .navbar-menu').removeClass('justify-content-start');
+          if (flag !== 'up') {
+            $header.classList.add('nav-visible')
+            isChatBtn && window.chatBtn.show()
+            flag = 'up'
+          }
         }
+      } else {
+        flag = ''
+        if (currentTop === 0) {
+          $header.classList.remove('nav-fixed', 'nav-visible')
+        }
+        $rightside.classList.remove('rightside-show')
+      }
+
+      isShowPercent && rightsideScrollPercent(currentTop)
+      checkDocumentHeight()
+    }, 300)
+
+    btf.addEventListenerPjax(window, 'scroll', scrollTask, { passive: true })
+  }
+
+  /**
+  * toc,anchor
+  */
+  const scrollFnToDo = () => {
+    const isToc = GLOBAL_CONFIG_SITE.isToc
+    const isAnchor = GLOBAL_CONFIG.isAnchor
+    const $article = document.getElementById('article-container')
+
+    if (!($article && (isToc || isAnchor))) return
+
+    let $tocLink, $cardToc, autoScrollToc, $tocPercentage, isExpand
+
+    if (isToc) {
+      const $cardTocLayout = document.getElementById('card-toc')
+      $cardToc = $cardTocLayout.querySelector('.toc-content')
+      $tocLink = $cardToc.querySelectorAll('.toc-link')
+      $tocPercentage = $cardTocLayout.querySelector('.toc-percentage')
+      isExpand = $cardToc.classList.contains('is-expand')
+
+      // toc元素點擊
+      const tocItemClickFn = e => {
+        const target = e.target.closest('.toc-link')
+        if (!target) return
+
+        e.preventDefault()
+        btf.scrollToDest(btf.getEleTop(document.getElementById(decodeURI(target.getAttribute('href')).replace('#', ''))), 300)
+        if (window.innerWidth < 900) {
+          $cardTocLayout.classList.remove('open')
+        }
+      }
+
+      btf.addEventListenerPjax($cardToc, 'click', tocItemClickFn)
+
+      autoScrollToc = item => {
+        const sidebarHeight = $cardToc.clientHeight
+        const itemOffsetTop = item.offsetTop
+        const itemHeight = item.clientHeight
+        const scrollTop = $cardToc.scrollTop
+        const offset = itemOffsetTop - scrollTop
+        const middlePosition = (sidebarHeight - itemHeight) / 2
+
+        if (offset !== middlePosition) {
+          $cardToc.scrollTop = scrollTop + (offset - middlePosition)
+        }
+      }
+
+      // 處理 hexo-blog-encrypt 事件
+      $cardToc.style.display = 'block'
     }
-    adjustNavbar();
-    $(window).resize(adjustNavbar);
 
-    function toggleFold(codeBlock, isFolded) {
-        const $toggle = $(codeBlock).find('.fold i');
-        !isFolded ? $(codeBlock).removeClass('folded') : $(codeBlock).addClass('folded');
-        !isFolded ? $toggle.removeClass('fa-angle-right') : $toggle.removeClass('fa-angle-down');
-        !isFolded ? $toggle.addClass('fa-angle-down') : $toggle.addClass('fa-angle-right');
-    }
+    // find head position & add active class
+    const $articleList = $article.querySelectorAll('h1,h2,h3,h4,h5,h6')
+    let detectItem = ''
 
-    function createFoldButton(fold) {
-        return '<span class="fold">' + (fold === 'unfolded' ? '<i class="fas fa-angle-down"></i>' : '<i class="fas fa-angle-right"></i>') + '</span>';
-    }
+    const findHeadPosition = top => {
+      if (top === 0) return false
 
-    $('figure.highlight table').wrap('<div class="highlight-body">');
-    if (typeof config !== 'undefined'
-        && typeof config.article !== 'undefined'
-        && typeof config.article.highlight !== 'undefined') {
+      let currentId = ''
+      let currentIndex = ''
 
-        $('figure.highlight').addClass('hljs');
-        $('figure.highlight .code .line span').each(function() {
-            const classes = $(this).attr('class').split(/\s+/);
-            for (const cls of classes) {
-                $(this).addClass('hljs-' + cls);
-                $(this).removeClass(cls);
+      for (let i = 0; i < $articleList.length; i++) {
+        const ele = $articleList[i]
+        if (top > btf.getEleTop(ele) - 80) {
+          const id = ele.id
+          currentId = id ? '#' + encodeURI(id) : ''
+          currentIndex = i
+        } else {
+          break
+        }
+      }
+
+      if (detectItem === currentIndex) return
+
+      if (isAnchor) btf.updateAnchor(currentId)
+
+      detectItem = currentIndex
+
+      if (isToc) {
+        $cardToc.querySelectorAll('.active').forEach(i => i.classList.remove('active'))
+
+        if (currentId) {
+          const currentActive = $tocLink[currentIndex]
+          currentActive.classList.add('active')
+
+          setTimeout(() => autoScrollToc(currentActive), 0)
+
+          if (!isExpand) {
+            let parent = currentActive.parentNode
+            while (!parent.matches('.toc')) {
+              if (parent.matches('li')) parent.classList.add('active')
+              parent = parent.parentNode
             }
-        });
-
-
-        const clipboard = config.article.highlight.clipboard;
-        const fold = config.article.highlight.fold.trim();
-
-        $('figure.highlight').each(function() {
-            if ($(this).find('figcaption').length) {
-                $(this).find('figcaption').addClass('level is-mobile');
-                $(this).find('figcaption').append('<div class="level-left">');
-                $(this).find('figcaption').append('<div class="level-right">');
-                $(this).find('figcaption div.level-left').append($(this).find('figcaption').find('span'));
-                $(this).find('figcaption div.level-right').append($(this).find('figcaption').find('a'));
-            } else {
-                if (clipboard || fold) {
-                    $(this).prepend('<figcaption class="level is-mobile"><div class="level-left"></div><div class="level-right"></div></figcaption>');
-                }
-            }
-        });
-
-        if (typeof ClipboardJS !== 'undefined' && clipboard) {
-            $('figure.highlight').each(function() {
-                const id = 'code-' + Date.now() + (Math.random() * 1000 | 0);
-                const button = '<a href="javascript:;" class="copy" title="Copy" data-clipboard-target="#' + id + ' .code"><i class="fas fa-copy"></i></a>';
-                $(this).attr('id', id);
-                $(this).find('figcaption div.level-right').append(button);
-            });
-            new ClipboardJS('.highlight .copy'); // eslint-disable-line no-new
+          }
         }
-
-        if (fold) {
-            $('figure.highlight').each(function() {
-                $(this).addClass('foldable'); // add 'foldable' class as long as fold is enabled
-
-                if ($(this).find('figcaption').find('span').length > 0) {
-                    const span = $(this).find('figcaption').find('span');
-                    if (span[0].innerText.indexOf('>folded') > -1) {
-                        span[0].innerText = span[0].innerText.replace('>folded', '');
-                        $(this).find('figcaption div.level-left').prepend(createFoldButton('folded'));
-                        toggleFold(this, true);
-                        return;
-                    }
-                }
-                $(this).find('figcaption div.level-left').prepend(createFoldButton(fold));
-                toggleFold(this, fold === 'folded');
-            });
-
-            $('figure.highlight figcaption .level-left').click(function() {
-                const $code = $(this).closest('figure.highlight');
-                toggleFold($code.eq(0), !$code.hasClass('folded'));
-            });
-        }
+      }
     }
 
-    const $toc = $('#toc');
-    if ($toc.length > 0) {
-        const $mask = $('<div>');
-        $mask.attr('id', 'toc-mask');
+    // main of scroll
+    const tocScrollFn = btf.throttle(() => {
+      const currentTop = window.scrollY || document.documentElement.scrollTop
+      if (isToc && GLOBAL_CONFIG.percent.toc) {
+        $tocPercentage.textContent = btf.getScrollPercent(currentTop, $article)
+      }
+      findHeadPosition(currentTop)
+    }, 100)
 
-        $('body').append($mask);
+    btf.addEventListenerPjax(window, 'scroll', tocScrollFn, { passive: true })
+  }
 
-        function toggleToc() { // eslint-disable-line no-inner-declarations
-            $toc.toggleClass('is-active');
-            $mask.toggleClass('is-active');
-        }
-
-        $toc.on('click', toggleToc);
-        $mask.on('click', toggleToc);
-        $('.navbar-main .catalogue').on('click', toggleToc);
+  const handleThemeChange = mode => {
+    const globalFn = window.globalFn || {}
+    const themeChange = globalFn.themeChange || {}
+    if (!themeChange) {
+      return
     }
-}(jQuery, window.moment, window.ClipboardJS, window.IcarusThemeSettings));
-;
-/**
- * Insight search plugin
- * @author PPOffice { @link https://github.com/ppoffice }
+
+    Object.keys(themeChange).forEach(key => {
+      const themeChangeFn = themeChange[key]
+      if (['disqus', 'disqusjs'].includes(key)) {
+        setTimeout(() => themeChangeFn(mode), 300)
+      } else {
+        themeChangeFn(mode)
+      }
+    })
+  }
+
+  /**
+   * Rightside
+   */
+  const rightSideFn = {
+    readmode: () => { // read mode
+      const $body = document.body
+      const newEle = document.createElement('button')
+
+      const exitReadMode = () => {
+        $body.classList.remove('read-mode')
+        newEle.remove()
+        newEle.removeEventListener('click', exitReadMode)
+      }
+
+      $body.classList.add('read-mode')
+      newEle.type = 'button'
+      newEle.className = 'fas fa-sign-out-alt exit-readmode'
+      newEle.addEventListener('click', exitReadMode)
+      $body.appendChild(newEle)
+    },
+    darkmode: () => { // switch between light and dark mode
+      const willChangeMode = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
+      if (willChangeMode === 'dark') {
+        btf.activateDarkMode()
+        GLOBAL_CONFIG.Snackbar !== undefined && btf.snackbarShow(GLOBAL_CONFIG.Snackbar.day_to_night)
+      } else {
+        btf.activateLightMode()
+        GLOBAL_CONFIG.Snackbar !== undefined && btf.snackbarShow(GLOBAL_CONFIG.Snackbar.night_to_day)
+      }
+      btf.saveToLocal.set('theme', willChangeMode, 2)
+      handleThemeChange(willChangeMode)
+    },
+    'rightside-config': item => { // Show or hide rightside-hide-btn
+      const hideLayout = item.firstElementChild
+      if (hideLayout.classList.contains('show')) {
+        hideLayout.classList.add('status')
+        setTimeout(() => {
+          hideLayout.classList.remove('status')
+        }, 300)
+      }
+
+      hideLayout.classList.toggle('show')
+    },
+    'go-up': () => { // Back to top
+      btf.scrollToDest(0, 500)
+    },
+    'hide-aside-btn': () => { // Hide aside
+      const $htmlDom = document.documentElement.classList
+      const saveStatus = $htmlDom.contains('hide-aside') ? 'show' : 'hide'
+      btf.saveToLocal.set('aside-status', saveStatus, 2)
+      $htmlDom.toggle('hide-aside')
+    },
+    'mobile-toc-button': (p, item) => { // Show mobile toc
+      const tocEle = document.getElementById('card-toc')
+      tocEle.style.transition = 'transform 0.3s ease-in-out'
+
+      const tocEleHeight = tocEle.clientHeight
+      const btData = item.getBoundingClientRect()
+
+      const tocEleBottom = window.innerHeight - btData.bottom - 30
+      if (tocEleHeight > tocEleBottom) {
+        tocEle.style.transformOrigin = `right ${tocEleHeight - tocEleBottom - btData.height / 2}px`
+      }
+
+      tocEle.classList.toggle('open')
+      tocEle.addEventListener('transitionend', () => {
+        tocEle.style.cssText = ''
+      }, { once: true })
+    },
+    'chat-btn': () => { // Show chat
+      window.chatBtnFn()
+    },
+    translateLink: () => { // switch between traditional and simplified chinese
+      window.translateFn.translatePage()
+    }
+  }
+
+  document.getElementById('rightside').addEventListener('click', e => {
+    const $target = e.target.closest('[id]')
+    if ($target && rightSideFn[$target.id]) {
+      rightSideFn[$target.id](e.currentTarget, $target)
+    }
+  })
+
+  /**
+   * menu
+   * 側邊欄sub-menu 展開/收縮
+   */
+  const clickFnOfSubMenu = () => {
+    const handleClickOfSubMenu = e => {
+      const target = e.target.closest('.site-page.group')
+      if (!target) return
+      target.classList.toggle('hide')
+    }
+
+    const menusItems = document.querySelector('#sidebar-menus .menus_items')
+    menusItems && menusItems.addEventListener('click', handleClickOfSubMenu)
+  }
+
+  /**
+   * 手机端目录点击
+   */
+  const openMobileMenu = () => {
+    const toggleMenu = document.getElementById('toggle-menu')
+    if (!toggleMenu) return
+    btf.addEventListenerPjax(toggleMenu, 'click', () => { sidebarFn.open() })
+  }
+
+  /**
+ * 複製時加上版權信息
  */
-// eslint-disable-next-line no-unused-vars
-function loadInsight(config, translation) {
-  const $main = $('.searchbox');
-  const $input = $main.find('.searchbox-input');
-  const $container = $main.find('.searchbox-body');
+  const addCopyright = () => {
+    const { limitCount, languages } = GLOBAL_CONFIG.copyright
 
-  function section(title) {
-    return $('<section>').addClass('searchbox-result-section').append($('<header>').text(title));
-  }
-
-  function merge(ranges) {
-    let last;
-    const result = [];
-
-    ranges.forEach((r) => {
-      if (!last || r[0] > last[1]) {
-        result.push((last = r));
-      } else if (r[1] > last[1]) {
-        last[1] = r[1];
+    const handleCopy = (e) => {
+      e.preventDefault()
+      const copyFont = window.getSelection(0).toString()
+      let textFont = copyFont
+      if (copyFont.length > limitCount) {
+        textFont = `${copyFont}\n\n\n${languages.author}\n${languages.link}${window.location.href}\n${languages.source}\n${languages.info}`
       }
-    });
-
-    return result;
-  }
-
-  function findAndHighlight(text, matches, maxlen) {
-    if (!Array.isArray(matches) || !matches.length || !text) {
-      return maxlen ? text.slice(0, maxlen) : text;
-    }
-    const testText = text.toLowerCase();
-    const indices = matches
-      .map((match) => {
-        const index = testText.indexOf(match.toLowerCase());
-        if (!match || index === -1) {
-          return null;
-        }
-        return [index, index + match.length];
-      })
-      .filter((match) => {
-        return match !== null;
-      })
-      .sort((a, b) => {
-        return a[0] - b[0] || a[1] - b[1];
-      });
-
-    if (!indices.length) {
-      return text;
-    }
-
-    let result = '';
-    let last = 0;
-    const ranges = merge(indices);
-    const sumRange = [ranges[0][0], ranges[ranges.length - 1][1]];
-    if (maxlen && maxlen < sumRange[1]) {
-      last = sumRange[0];
-    }
-
-    for (let i = 0; i < ranges.length; i++) {
-      const range = ranges[i];
-      result += text.slice(last, Math.min(range[0], sumRange[0] + maxlen));
-      if (maxlen && range[0] >= sumRange[0] + maxlen) {
-        break;
-      }
-      result += '<em>' + text.slice(range[0], range[1]) + '</em>';
-      last = range[1];
-      if (i === ranges.length - 1) {
-        if (maxlen) {
-          result += text.slice(range[1], Math.min(text.length, sumRange[0] + maxlen + 1));
-        } else {
-          result += text.slice(range[1]);
-        }
+      if (e.clipboardData) {
+        return e.clipboardData.setData('text', textFont)
+      } else {
+        return window.clipboardData.setData('text', textFont)
       }
     }
 
-    return result;
-  }
-
-  function searchItem(icon, title, slug, preview, url) {
-    title = title != null && title !== '' ? title : translation.untitled;
-    const subtitle = slug
-      ? '<span class="searchbox-result-title-secondary">(' + slug + ')</span>'
-      : '';
-
-    return `<a class="searchbox-result-item" href="${url}">
-            <span class="searchbox-result-icon">
-                <i class="fa fa-${icon}" />
-            </span>
-            <span class="searchbox-result-content">
-                <span class="searchbox-result-title">
-                    ${title}
-                    ${subtitle}
-                </span>
-                ${preview ? '<span class="searchbox-result-preview">' + preview + '</span>' : ''}
-            </span>
-        </a>`;
-  }
-
-  function sectionFactory(keywords, type, array) {
-    let $searchItems;
-    if (array.length === 0) return null;
-    const sectionTitle = translation[type.toLowerCase()];
-    switch (type) {
-      case 'POSTS':
-      case 'PAGES':
-        $searchItems = array.map((item) => {
-          const title = findAndHighlight(item.title, keywords);
-          const text = findAndHighlight(item.text, keywords, 100);
-          return searchItem('file', title, null, text, item.link);
-        });
-        break;
-      case 'CATEGORIES':
-      case 'TAGS':
-        $searchItems = array.map((item) => {
-          const name = findAndHighlight(item.name, keywords);
-          const slug = findAndHighlight(item.slug, keywords);
-          return searchItem(type === 'CATEGORIES' ? 'folder' : 'tag', name, slug, null, item.link);
-        });
-        break;
-      default:
-        return null;
-    }
-    return section(sectionTitle).append($searchItems);
-  }
-
-  function parseKeywords(keywords) {
-    return keywords
-      .split(' ')
-      .filter((keyword) => {
-        return !!keyword;
-      })
-      .map((keyword) => {
-        return keyword.toLowerCase();
-      });
+    document.body.addEventListener('copy', handleCopy)
   }
 
   /**
-   * Judge if a given post/page/category/tag contains all of the keywords.
-   * @param Object            obj     Object to be weighted
-   * @param Array<String>     fields  Object's fields to find matches
+   * 網頁運行時間
    */
-  function filter(keywords, obj, fields) {
-    const keywordArray = parseKeywords(keywords);
-    const containKeywords = keywordArray.filter((keyword) => {
-      const containFields = fields.filter((field) => {
-        if (!Object.prototype.hasOwnProperty.call(obj, field)) {
-          return false;
-        }
-        if (obj[field].toLowerCase().indexOf(keyword) > -1) {
-          return true;
-        }
-        return false;
-      });
-      if (containFields.length > 0) {
-        return true;
-      }
-      return false;
-    });
-    return containKeywords.length === keywordArray.length;
-  }
-
-  function filterFactory(keywords) {
-    return {
-      post: function (obj) {
-        return filter(keywords, obj, ['title', 'text']);
-      },
-      page: function (obj) {
-        return filter(keywords, obj, ['title', 'text']);
-      },
-      category: function (obj) {
-        return filter(keywords, obj, ['name', 'slug']);
-      },
-      tag: function (obj) {
-        return filter(keywords, obj, ['name', 'slug']);
-      },
-    };
+  const addRuntime = () => {
+    const $runtimeCount = document.getElementById('runtimeshow')
+    if ($runtimeCount) {
+      const publishDate = $runtimeCount.getAttribute('data-publishDate')
+      $runtimeCount.textContent = `${btf.diffDate(publishDate)} ${GLOBAL_CONFIG.runtime}`
+    }
   }
 
   /**
-   * Calculate the weight of a matched post/page/category/tag.
-   * @param Object            obj     Object to be weighted
-   * @param Array<String>     fields  Object's fields to find matches
-   * @param Array<Integer>    weights Weight of every field
+   * 最後一次更新時間
    */
-  function weight(keywords, obj, fields, weights) {
-    let value = 0;
-    parseKeywords(keywords).forEach((keyword) => {
-      const pattern = new RegExp(keyword, 'img'); // Global, Multi-line, Case-insensitive
-      fields.forEach((field, index) => {
-        if (Object.prototype.hasOwnProperty.call(obj, field)) {
-          const matches = obj[field].match(pattern);
-          value += matches ? matches.length * weights[index] : 0;
-        }
-      });
-    });
-    return value;
-  }
-
-  function weightFactory(keywords) {
-    return {
-      post: function (obj) {
-        return weight(keywords, obj, ['title', 'text'], [3, 1]);
-      },
-      page: function (obj) {
-        return weight(keywords, obj, ['title', 'text'], [3, 1]);
-      },
-      category: function (obj) {
-        return weight(keywords, obj, ['name', 'slug'], [1, 1]);
-      },
-      tag: function (obj) {
-        return weight(keywords, obj, ['name', 'slug'], [1, 1]);
-      },
-    };
-  }
-
-  function search(json, keywords) {
-    const weights = weightFactory(keywords);
-    const filters = filterFactory(keywords);
-    const posts = json.posts;
-    const pages = json.pages;
-    const tags = json.tags;
-    const categories = json.categories;
-    return {
-      posts: posts
-        .filter(filters.post)
-        .sort((a, b) => {
-          return weights.post(b) - weights.post(a);
-        })
-        .slice(0, 5),
-      pages: pages
-        .filter(filters.page)
-        .sort((a, b) => {
-          return weights.page(b) - weights.page(a);
-        })
-        .slice(0, 5),
-      categories: categories
-        .filter(filters.category)
-        .sort((a, b) => {
-          return weights.category(b) - weights.category(a);
-        })
-        .slice(0, 5),
-      tags: tags
-        .filter(filters.tag)
-        .sort((a, b) => {
-          return weights.tag(b) - weights.tag(a);
-        })
-        .slice(0, 5),
-    };
-  }
-
-  function searchResultToDOM(keywords, searchResult) {
-    $container.empty();
-    for (const key in searchResult) {
-      $container.append(
-        sectionFactory(parseKeywords(keywords), key.toUpperCase(), searchResult[key]),
-      );
+  const addLastPushDate = () => {
+    const $lastPushDateItem = document.getElementById('last-push-date')
+    if ($lastPushDateItem) {
+      const lastPushDate = $lastPushDateItem.getAttribute('data-lastPushDate')
+      $lastPushDateItem.textContent = btf.diffDate(lastPushDate, true)
     }
   }
 
-  function scrollTo($item) {
-    if ($item.length === 0) return;
-    const wrapperHeight = $container[0].clientHeight;
-    const itemTop = $item.position().top - $container.scrollTop();
-    const itemBottom = $item[0].clientHeight + $item.position().top;
-    if (itemBottom > wrapperHeight + $container.scrollTop()) {
-      $container.scrollTop(itemBottom - $container[0].clientHeight);
-    }
-    if (itemTop < 0) {
-      $container.scrollTop($item.position().top);
-    }
-  }
+  /**
+   * table overflow
+   */
+  const addTableWrap = () => {
+    const $table = document.querySelectorAll('#article-container table')
+    if (!$table.length) return
 
-  function selectItemByDiff(value) {
-    const $items = $.makeArray($container.find('.searchbox-result-item'));
-    let prevPosition = -1;
-    $items.forEach((item, index) => {
-      if ($(item).hasClass('active')) {
-        prevPosition = index;
-      }
-    });
-    const nextPosition = ($items.length + prevPosition + value) % $items.length;
-    $($items[prevPosition]).removeClass('active');
-    $($items[nextPosition]).addClass('active');
-    scrollTo($($items[nextPosition]));
-  }
-
-  function gotoLink($item) {
-    if ($item && $item.length) {
-      location.href = $item.attr('href');
-    }
-  }
-
-  $.getJSON(config.contentUrl, (json) => {
-    if (location.hash.trim() === '#insight-search') {
-      $main.addClass('show');
-    }
-    $input.on('input', function () {
-      const keywords = $(this).val();
-      searchResultToDOM(keywords, search(json, keywords));
-    });
-    $input.trigger('input');
-  });
-
-  let touch = false;
-  $(document)
-    .on('click focus', '.navbar-main .search', () => {
-      $main.addClass('show');
-      $main.find('.searchbox-input').focus();
-    })
-    .on('click touchend', '.searchbox-result-item', function (e) {
-      if (e.type !== 'click' && !touch) {
-        return;
-      }
-      gotoLink($(this));
-      touch = false;
-    })
-    .on('click touchend', '.searchbox-close', (e) => {
-      if (e.type !== 'click' && !touch) {
-        return;
-      }
-      $('.navbar-main').css('pointer-events', 'none');
-      setTimeout(() => {
-        $('.navbar-main').css('pointer-events', 'auto');
-      }, 400);
-      $main.removeClass('show');
-      touch = false;
-    })
-    .on('keydown', (e) => {
-      if (!$main.hasClass('show')) return;
-      switch (e.keyCode) {
-        case 27: // ESC
-          $main.removeClass('show');
-          break;
-        case 38: // UP
-          selectItemByDiff(-1);
-          break;
-        case 40: // DOWN
-          selectItemByDiff(1);
-          break;
-        case 13: // ENTER
-          gotoLink($container.find('.searchbox-result-item.active').eq(0));
-          break;
+    $table.forEach(item => {
+      if (!item.closest('.highlight')) {
+        btf.wrap(item, 'div', { class: 'table-wrap' })
       }
     })
-    .on('touchstart', (e) => {
-      touch = true;
+  }
+
+  /**
+   * tag-hide
+   */
+  const clickFnOfTagHide = () => {
+    const hideButtons = document.querySelectorAll('#article-container .hide-button')
+    if (!hideButtons.length) return
+    hideButtons.forEach(item => item.addEventListener('click', e => {
+      const currentTarget = e.currentTarget
+      currentTarget.classList.add('open')
+      addJustifiedGallery(currentTarget.nextElementSibling.querySelectorAll('.gallery-container'))
+    }, { once: true }))
+  }
+
+  const tabsFn = () => {
+    const navTabsElements = document.querySelectorAll('#article-container .tabs')
+    if (!navTabsElements.length) return
+
+    const setActiveClass = (elements, activeIndex) => {
+      elements.forEach((el, index) => {
+        el.classList.toggle('active', index === activeIndex)
+      })
+    }
+
+    const handleNavClick = e => {
+      const target = e.target.closest('button')
+      if (!target || target.classList.contains('active')) return
+
+      const navItems = [...e.currentTarget.children]
+      const tabContents = [...e.currentTarget.nextElementSibling.children]
+      const indexOfButton = navItems.indexOf(target)
+      setActiveClass(navItems, indexOfButton)
+      e.currentTarget.classList.remove('no-default')
+      setActiveClass(tabContents, indexOfButton)
+      addJustifiedGallery(tabContents[indexOfButton].querySelectorAll('.gallery-container'), true)
+    }
+
+    const handleToTopClick = tabElement => e => {
+      if (e.target.closest('button')) {
+        btf.scrollToDest(btf.getEleTop(tabElement), 300)
+      }
+    }
+
+    navTabsElements.forEach(tabElement => {
+      btf.addEventListenerPjax(tabElement.firstElementChild, 'click', handleNavClick)
+      btf.addEventListenerPjax(tabElement.lastElementChild, 'click', handleToTopClick(tabElement))
     })
-    .on('touchmove', (e) => {
-      touch = false;
-    });
-}
+  }
+
+  const toggleCardCategory = () => {
+    const cardCategory = document.querySelector('#aside-cat-list.expandBtn')
+    if (!cardCategory) return
+
+    const handleToggleBtn = e => {
+      const target = e.target
+      if (target.nodeName === 'I') {
+        e.preventDefault()
+        target.parentNode.classList.toggle('expand')
+      }
+    }
+    btf.addEventListenerPjax(cardCategory, 'click', handleToggleBtn, true)
+  }
+
+  const addPostOutdateNotice = () => {
+    const ele = document.getElementById('post-outdate-notice')
+    if (!ele) return
+
+    const { limitDay, messagePrev, messageNext, postUpdate } = JSON.parse(ele.getAttribute('data'))
+    const diffDay = btf.diffDate(postUpdate)
+    if (diffDay >= limitDay) {
+      ele.textContent = `${messagePrev} ${diffDay} ${messageNext}`
+      ele.hidden = false
+    }
+  }
+
+  const lazyloadImg = () => {
+    window.lazyLoadInstance = new LazyLoad({
+      elements_selector: 'img',
+      threshold: 0,
+      data_src: 'lazy-src'
+    })
+
+    btf.addGlobalFn('pjaxComplete', () => {
+      window.lazyLoadInstance.update()
+    }, 'lazyload')
+  }
+
+  const relativeDate = selector => {
+    selector.forEach(item => {
+      item.textContent = btf.diffDate(item.getAttribute('datetime'), true)
+      item.style.display = 'inline'
+    })
+  }
+
+  const justifiedIndexPostUI = () => {
+    const recentPostsElement = document.getElementById('recent-posts')
+    if (!(recentPostsElement && recentPostsElement.classList.contains('masonry'))) return
+
+    const init = () => {
+      const masonryItem = new InfiniteGrid.MasonryInfiniteGrid('.recent-post-items', {
+        gap: { horizontal: 10, vertical: 20 },
+        useTransform: true,
+        useResizeObserver: true
+      })
+      masonryItem.renderItems()
+      btf.addGlobalFn('pjaxCompleteOnce', () => { masonryItem.destroy() }, 'removeJustifiedIndexPostUI')
+    }
+
+    typeof InfiniteGrid === 'function' ? init() : btf.getScript(`${GLOBAL_CONFIG.infinitegrid.js}`).then(init)
+  }
+
+  const unRefreshFn = () => {
+    window.addEventListener('resize', () => {
+      adjustMenu(false)
+      mobileSidebarOpen && btf.isHidden(document.getElementById('toggle-menu')) && sidebarFn.close()
+    })
+
+    const menuMask = document.getElementById('menu-mask')
+    menuMask && menuMask.addEventListener('click', () => { sidebarFn.close() })
+
+    clickFnOfSubMenu()
+    GLOBAL_CONFIG.islazyload && lazyloadImg()
+    GLOBAL_CONFIG.copyright !== undefined && addCopyright()
+
+    if (GLOBAL_CONFIG.autoDarkmode) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+        if (btf.saveToLocal.get('theme') !== undefined) return
+        e.matches ? handleThemeChange('dark') : handleThemeChange('light')
+      })
+    }
+  }
+
+  const forPostFn = () => {
+    addHighlightTool()
+    addPhotoFigcaption()
+    addJustifiedGallery(document.querySelectorAll('#article-container .gallery-container'))
+    runLightbox()
+    scrollFnToDo()
+    addTableWrap()
+    clickFnOfTagHide()
+    tabsFn()
+  }
+
+  const refreshFn = () => {
+    initAdjust()
+    justifiedIndexPostUI()
+
+    if (GLOBAL_CONFIG_SITE.isPost) {
+      addPostOutdateNotice()
+      GLOBAL_CONFIG.relativeDate.post && relativeDate(document.querySelectorAll('#post-meta time'))
+    } else {
+      GLOBAL_CONFIG.relativeDate.homepage && relativeDate(document.querySelectorAll('#recent-posts time'))
+      GLOBAL_CONFIG.runtime && addRuntime()
+      addLastPushDate()
+      toggleCardCategory()
+    }
+
+    GLOBAL_CONFIG_SITE.isHome && scrollDownInIndex()
+    scrollFn()
+
+    forPostFn()
+    !GLOBAL_CONFIG_SITE.isShuoshuo && btf.switchComments(document)
+    openMobileMenu()
+  }
+
+  btf.addGlobalFn('pjaxComplete', refreshFn, 'refreshFn')
+  refreshFn()
+  unRefreshFn()
+
+  // 處理 hexo-blog-encrypt 事件
+  window.addEventListener('hexo-blog-decrypt', e => {
+    forPostFn()
+    window.translateFn.translateInitialization()
+    Object.values(window.globalFn.encrypt).forEach(fn => {
+      fn()
+    })
+  })
+})
