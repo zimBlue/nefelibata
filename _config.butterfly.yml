@@ -594,14 +594,14 @@ comments:
   # 如果不需要評論功能，保持為空
   # 選擇：Disqus/Disqusjs/Livere/Gitalk/Valine/Waline/Utterances/Facebook Comments/Twikoo/Giscus/Remark42/Artalk
   # 兩個評論系統的格式：Disqus,Waline
-  use:
+  use: Giscus
   # 按鈕旁邊顯示評論系統名稱
   text: true
   # 懶加載：評論系統將在評論元素進入瀏覽器視口時加載
   # 如果設置為 true，評論計數將無效
   lazyload: false
   # 在文章頂部圖片中顯示評論計數
-  count: false
+  count: true
   # 在主頁顯示評論計數
   card_post_count: false
 
@@ -717,11 +717,11 @@ twikoo:
 # 官方文檔：https://giscus.app/
 giscus:
   # 倉庫地址
-  repo:
+  repo: zimBlue/nefelibata
   # 倉庫 ID
-  repo_id:
+  repo_id: R_kgDONRwv2w
   # 分類 ID
-  category_id:
+  category_id: DIC_kwDONRwv284ClFpu
   # 主題配置，light 為淺色主題，dark 為深色主題
   theme:
     light: light
@@ -1211,7 +1211,7 @@ CDN:
   # 注意： Dev 版本只能使用 'local' 作為內部腳本
   # 注意：將第三方腳本設置為 'local' 時，需要安裝 hexo-butterfly-extjs
   internal_provider: local
-  third_party_provider: custom
+  third_party_provider: jsdelivr
 
   # 是否在 URL 中添加版本號，true 或 false
   version: true
